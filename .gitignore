@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Environment variables (sensitive)
+.env
+
+# Google OAuth token (sensitive)
+token.json
+
+# Build output
+dist/
+
+# Logs
+server.log
+*.log
+
+# macOS
+.DS_Store
