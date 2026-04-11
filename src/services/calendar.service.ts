@@ -1,14 +1,10 @@
-import { google, calendar_v3 } from 'googleapis';
+import { google, calendar_v3, Auth } from 'googleapis';
 
 export class CalendarService {
   private calendar: calendar_v3.Calendar;
 
-  constructor(apiKey: string) {
-    // API 키를 사용한 인증 설정 (타입 에러 방지를 위해 any 캐스팅 또는 객체 형태 사용)
-    this.calendar = google.calendar({
-      version: 'v3',
-      auth: apiKey // googleapis는 auth에 string(API Key)도 허용하지만 타입 정의가 엄격할 수 있음
-    });
+  constructor(auth: Auth.OAuth2Client) {
+    this.calendar = google.calendar({ version: 'v3', auth });
   }
 
   /**

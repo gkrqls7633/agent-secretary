@@ -43,6 +43,54 @@ export class BlockKitBuilder {
   }
 
   /**
+   * 회복 제안 메시지 템플릿
+   */
+  static restorationProposal(data: {
+    recoveryLevel: number;
+    fatigueLevel: number;
+  }) {
+    const suggestion = data.fatigueLevel >= 70
+      ? '😴 짧은 낮잠 (10-20분)'
+      : data.fatigueLevel >= 40
+      ? '🧘 가벼운 스트레칭 또는 산책'
+      : '☕ 커피 한 잔과 짧은 휴식';
+
+    return [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: '🔋 회복 타임 제안', emoji: true }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `현재 회복 수준 *${data.recoveryLevel}%* / 피로도 *${data.fatigueLevel}%*\n지금은 잠깐 쉬어가는 게 좋을 것 같아요.`
+        }
+      },
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `추천: *${suggestion}*` }
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: '쉴게요', emoji: true },
+            style: 'primary',
+            action_id: 'restore_accept'
+          },
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: '괜찮아요', emoji: true },
+            action_id: 'restore_reject'
+          }
+        ]
+      }
+    ];
+  }
+
+  /**
    * 집중 업무 제안 메시지 템플릿
    */
   static focusProposal(data: {
