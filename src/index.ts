@@ -1,92 +1,61 @@
 import { App } from '@slack/bolt';
 import dotenv from 'dotenv';
 import express from 'express';
-import { google } from 'googleapis';
-import fs from 'fs';
-import path from 'path';
 import { CalendarService } from './services/calendar.service';
 import { WeatherService } from './services/weather.service';
 import { HealthService } from './services/health.service';
+import { DatabaseManager } from './db/database';
+import { FocusEngine } from './logic/focus.logic';
+import { BlockKitBuilder } from './utils/block-kit';
 
 dotenv.config();
 
 const slackBotToken = process.env.SLACK_BOT_TOKEN || '';
 const slackSigningSecret = process.env.SLACK_SIGNING_SECRET || '';
 const slackAppToken = process.env.SLACK_APP_TOKEN || '';
+const googleApiKey = process.env.GOOGLE_CALENDAR_API_KEY || '';
 const weatherApiKey = process.env.OPENWEATHER_API_KEY || '';
 const port = Number(process.env.PORT) || 3000;
 
-const TOKEN_PATH = path.join(__dirname, '..', 'token.json');
-const REDIRECT_URI = `http://localhost:${port}/auth/google/callback`;
-const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
-
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_OAUTH_CLIENT_ID,
-  process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-  REDIRECT_URI
-);
-
-if (fs.existsSync(TOKEN_PATH)) {
-  const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
-  oauth2Client.setCredentials(token);
-  console.log('✅ Google Calendar 토큰 로드 완료');
-} else {
-  console.log('⚠️  Google Calendar 미인증 상태. http://localhost:' + port + '/auth/google 에서 인증하세요.');
-}
-
-const calendarService = new CalendarService(oauth2Client);
+// 서비스 및 엔진 초기화
+const calendarService = new CalendarService(googleApiKey);
 const weatherService = new WeatherService(weatherApiKey);
 const healthService = new HealthService();
+const dbManager = new DatabaseManager();
+const focusEngine = new FocusEngine();
 
 const webServer = express();
 
-webServer.get('/auth/google', (req, res) => {
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: SCOPES,
-  });
-  res.redirect(url);
-});
-
-webServer.get('/auth/google/callback', async (req, res) => {
-  const code = req.query.code as string;
-  try {
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-    fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
-    console.log('✅ Google Calendar 인증 완료, 토큰 저장됨');
-    res.send('✅ Google Calendar 인증 완료! 이 창을 닫아도 됩니다.');
-  } catch (err) {
-    console.error('❌ Google OAuth 콜백 오류:', err);
-    res.status(500).send('인증 실패. 서버 로그를 확인하세요.');
-  }
-});
-
+/**
+ * 1. 데이터 통합 및 디버그 페이지
+ */
 webServer.get('/debug', async (req, res) => {
-  console.log('--- Debug Request Received ---');
   try {
-    const weather = await weatherService.getCurrentWeather();
-    const health = await healthService.getTodaysHealthMetrics();
-    const nextEvent = await calendarService.getNextEvent().catch(err => {
-      console.error('❌ Calendar Error:', err.message);
-      return { summary: 'Calendar Error: ' + err.message };
-    });
+    const [weather, health, todaysEvents] = await Promise.all([
+      weatherService.getCurrentWeather(),
+      healthService.getTodaysHealthMetrics(),
+      calendarService.getTodaysEvents()
+    ]);
+
+    const focusScore = focusEngine.calculateFocusScore({ health, calendarEvents: todaysEvents });
+    const focusInsight = focusEngine.getFocusInsight(focusScore);
 
     res.json({
       status: 'success',
       timestamp: new Date().toISOString(),
-      weather: weather || 'Failed (Check server logs)',
-      health: health,
-      calendar: nextEvent || 'No upcoming events'
+      analysis: { focus_score: focusScore, insight: focusInsight },
+      data: { weather, health, todays_meeting_count: todaysEvents.length }
     });
   } catch (err: any) {
-    console.error('❌ Debug Route Error:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
 webServer.listen(port, () => console.log(`🌐 Dashboard: http://localhost:${port}/debug`));
 
+/**
+ * 2. Slack 앱 설정
+ */
 const app = new App({
   token: slackBotToken,
   signingSecret: slackSigningSecret,
@@ -94,53 +63,106 @@ const app = new App({
   appToken: slackAppToken,
 });
 
-// 모든 메시지 로깅 (슬랙 이벤트 수신 확인용)
-app.event('message', async ({ event }) => {
-  console.log('📥 Incoming Slack Message:', (event as any).text);
+/**
+ * [Scenario 1] 모닝 브리핑 수동 요청
+ */
+app.message('morning', async ({ say }) => {
+  const [weather, nextEvent] = await Promise.all([
+    weatherService.getCurrentWeather(),
+    calendarService.getNextEvent()
+  ]);
+
+  const blocks = BlockKitBuilder.morningBriefing({
+    temp: weather?.temp || 0,
+    description: weather?.description || '맑음',
+    isPrecipitation: weather?.isPrecipitation || false,
+    nextEvent: (nextEvent as any)?.summary || '없음',
+    departureTime: '09:05 AM'
+  });
+
+  await say({ blocks });
 });
 
-app.message('check', async ({ message, say }) => {
-  console.log('✅ "check" command triggered');
-  try {
-    const [weather, health, nextEvent] = await Promise.all([
-      weatherService.getCurrentWeather(),
-      healthService.getTodaysHealthMetrics(),
-      calendarService.getNextEvent()
-    ]);
+/**
+ * [Scenario 2] 집중 업무 제안 수동 요청
+ */
+app.message('focus', async ({ say }) => {
+  const [health, todaysEvents] = await Promise.all([
+    healthService.getTodaysHealthMetrics(),
+    calendarService.getTodaysEvents()
+  ]);
 
-    await say({
-      blocks: [
-        {
-          type: "header",
-          text: { type: "plain_text", text: "📊 현재 데이터 수집 리포트", emoji: true }
-        },
-        {
-          type: "section",
-          fields: [
-            { type: "mrkdwn", text: `*날씨:*\n${weather ? `${weather.temp}°C, ${weather.description}` : '날씨 정보를 가져올 수 없습니다.'}` },
-            { type: "mrkdwn", text: `*에너지 점수:*\n${health.sleepScore}점 (회복 ${health.recoveryLevel}%)` }
-          ]
-        },
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*다음 일정:*\n${nextEvent ? (nextEvent as any).summary : '일정 없음'}`
-          }
-        }
-      ]
-    });
-  } catch (error) {
-    console.error('❌ Check Error:', error);
-    await say('데이터 조회 중 오류가 발생했습니다.');
-  }
+  const focusScore = focusEngine.calculateFocusScore({ health, calendarEvents: todaysEvents });
+  const focusInsight = focusEngine.getFocusInsight(focusScore);
+
+  const blocks = BlockKitBuilder.focusProposal({
+    focusScore,
+    insight: focusInsight,
+    recommendedTask: 'AI 서비스 기획안 초안 검토'
+  });
+
+  await say({ blocks });
+});
+
+/**
+ * [Interaction] 상호작용 피드백 핸들러
+ */
+
+// 1. 모닝 브리핑 확인
+app.action('morning_confirm', async ({ ack, body, client }) => {
+  await ack();
+  await dbManager.logInteraction({
+    scenario: 'morning',
+    proposal_text: '모닝 브리핑 확인',
+    user_action: 'accepted'
+  });
+  await client.chat.update({
+    channel: (body as any).container.channel_id,
+    ts: (body as any).container.message_ts,
+    text: "확인되었습니다! 좋은 하루 되세요. 🚗",
+    blocks: [{ type: "section", text: { type: "mrkdwn", text: "✅ *출근 준비 완료!* 안전하게 다녀오세요." } }]
+  });
+});
+
+// 2. 집중 업무 시작
+app.action('focus_start', async ({ ack, body, client }) => {
+  await ack();
+  await dbManager.logInteraction({
+    scenario: 'focus',
+    proposal_text: '집중 업무 제안',
+    user_action: 'accepted'
+  });
+  await client.chat.update({
+    channel: (body as any).container.channel_id,
+    ts: (body as any).container.message_ts,
+    text: "집중 모드 가동! 🤫",
+    blocks: [{ type: "section", text: { type: "mrkdwn", text: "🔥 *집중 모드 가동!* Slack 상태를 '방해 금지'로 변경했습니다. (시뮬레이션)" } }]
+  });
+});
+
+// 3. 집중 업무 거절
+app.action('focus_reject', async ({ ack, body, client }) => {
+  await ack();
+  await dbManager.logInteraction({
+    scenario: 'focus',
+    proposal_text: '집중 업무 제안',
+    user_action: 'rejected',
+    rejection_reason: '취향 아님/피로'
+  });
+  await client.chat.update({
+    channel: (body as any).container.channel_id,
+    ts: (body as any).container.message_ts,
+    text: "제안을 취소했습니다.",
+    blocks: [{ type: "section", text: { type: "mrkdwn", text: "🏃‍♂️ *이해했습니다.* 지금은 쉬고 싶으시군요. 나중에 다시 제안해 드릴게요." } }]
+  });
 });
 
 (async () => {
   try {
+    await dbManager.init();
     await app.start();
-    console.log('⚡️ Secretary Agent is online!');
+    console.log('⚡️ Secretary Agent is online with Interaction Loop!');
   } catch (error) {
-    console.error('❌ Slack Bot start failed:', error);
+    console.error('❌ 앱 구동 실패:', error);
   }
 })();

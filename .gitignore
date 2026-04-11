@@ -10,6 +10,9 @@ token.json
 # Build output
 dist/
 
+# Database (root-level only, not src/db/)
+/db/
+
 # Logs
 server.log
 *.log
