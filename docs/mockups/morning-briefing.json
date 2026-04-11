@@ -1,0 +1,53 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "☀️ Good Morning, Hakbin!",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Your first meeting is at 10:00 AM (Gangnam).* \n It's currently raining, so traffic is heavier than usual."
+      }
+    },
+    {
+      "type": "rich_text",
+      "elements": [
+        {
+          "type": "rich_text_list",
+          "style": "bullet",
+          "elements": [
+            {
+              "type": "rich_text_section",
+              "elements": [{ "type": "text", "text": "Departure: 09:05 AM (Recommended)" }]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [{ "type": "text", "text": "Transport: Bus No. 140 (Arriving in 5m)" }]
+            },
+            {
+              "type": "rich_text_section",
+              "elements": [{ "type": "text", "text": "Checklist: Don't forget your umbrella! ☂️" }]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": { "type": "plain_text", "text": "OK, I'm ready!", "emoji": true },
+          "style": "primary",
+          "action_id": "morning_confirm"
+        }
+      ]
+    }
+  ]
+}
