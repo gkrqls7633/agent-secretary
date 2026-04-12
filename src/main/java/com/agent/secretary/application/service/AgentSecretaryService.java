@@ -90,6 +90,10 @@ public class AgentSecretaryService {
                     String insight = focusEngine.getFocusInsight(score);
                     
                     return new FocusAnalysisResult(score, insight);
+                })
+                .exceptionally(e -> {
+                    log.error("Critical error during focus analysis", e);
+                    return new FocusAnalysisResult(0, "오류가 발생했습니다. 로그를 확인하세요.");
                 });
     }
 

@@ -17,3 +17,8 @@ slack:
   signing-secret: ${SLACK_SIGNING_SECRET}
   app-token: ${SLACK_APP_TOKEN}
   channel-id: ${SLACK_CHANNEL_ID}
+
+google:
+  calendar:
+    credentials-path: ${GOOGLE_CREDENTIALS_PATH}
+    calendar-id: ${GOOGLE_CALENDAR_ID:primary}
