@@ -1,24 +1,43 @@
-# Dependencies
+# Gradle
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# VS Code
+.vscode/
+
+# Node (if used in project)
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Environment variables (sensitive)
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Sensitive and Local Data
 .env
-
-# Google OAuth token (sensitive)
 token.json
-
-# Build output
-dist/
-
-# Database (root-level only, not src/db/)
-/db/
-
-# Logs
 server.log
 *.log
 
-# macOS
-.DS_Store
+# Database
+db/*.db
+db/*.sqlite
+db/*.sqlite3
+!db/.gitkeep
 
-package-lock.json
-package.json
+# Java
+*.class
+*.jar
+*.war
+*.ear

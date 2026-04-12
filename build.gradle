@@ -1,0 +1,79 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.agent'
+version = '1.1.0'
+
+java {
+    sourceCompatibility = '21'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Starter
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    
+    // Slack SDK
+    implementation 'com.slack.api:bolt-jakarta-servlet:1.38.2'
+    implementation 'com.slack.api:slack-api-client:1.38.2'
+    
+    // SQLite
+    implementation 'org.xerial:sqlite-jdbc:3.45.2.0'
+    implementation 'org.hibernate.orm:hibernate-community-dialects:6.4.4.Final'
+
+    // Utils
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs << "--enable-preview"
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    
+    def envFile = file(".env")
+    if (envFile.exists()) {
+        envFile.eachLine { line ->
+            if (line && !line.startsWith("#") && line.contains("=")) {
+                def idx = line.indexOf("=")
+                def key = line.substring(0, idx).trim()
+                def value = line.substring(idx + 1).trim()
+                environment key, value
+            }
+        }
+    }
+}
+
+bootRun {
+    jvmArgs "--enable-preview"
+
+    def envFile = file(".env")
+    if (envFile.exists()) {
+        envFile.eachLine { line ->
+            if (line && !line.startsWith("#") && line.contains("=")) {
+                def idx = line.indexOf("=")
+                def key = line.substring(0, idx).trim()
+                def value = line.substring(idx + 1).trim()
+                environment key, value
+            }
+        }
+    }
+}
