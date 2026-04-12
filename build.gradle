@@ -25,10 +25,13 @@ dependencies {
     // Spring Boot Starter
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    
+
     // Slack SDK
     implementation 'com.slack.api:bolt-jakarta-servlet:1.38.2'
+    implementation 'com.slack.api:bolt-socket-mode:1.38.2'
     implementation 'com.slack.api:slack-api-client:1.38.2'
+    // Slack SDK 1.38.2는 javax.websocket 기반 Tyrus 1.x 필요
+    implementation 'org.glassfish.tyrus.bundles:tyrus-standalone-client:1.19'
     
     // SQLite
     implementation 'org.xerial:sqlite-jdbc:3.45.2.0'

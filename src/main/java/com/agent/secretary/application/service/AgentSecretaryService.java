@@ -45,7 +45,7 @@ public class AgentSecretaryService {
     /**
      * 매주 평일 9시부터 18시까지 매 정각마다 업무 집중도를 체크합니다.
      */
-//    @Scheduled(cron = "0 0 9-18 * * MON-FRI")
+    @Scheduled(cron = "0 0 9-18 * * MON-FRI")
     @Scheduled(cron = "0 * * * * *")
     public void hourlyFocusCheck() {
         log.info("Starting hourly focus check analysis...");
