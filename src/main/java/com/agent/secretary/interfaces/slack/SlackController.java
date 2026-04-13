@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.regex.Pattern;
+
 @Configuration
 @RequiredArgsConstructor
 @Slf4j
@@ -22,9 +24,13 @@ public class SlackController {
     public void registerSlackHandlers() {
         log.info("Initializing Slack handlers...");
 
-        // 1. 앱 멘션 이벤트 처리
+        // 1. 앱 멘션 이벤트 처리 - "task" 키워드 포함 시 Task 목록, 아니면 집중도 체크
         slackApp.event(AppMentionEvent.class, (req, ctx) -> {
-            log.info("Event Received: App Mentioned -> {}", req.getEvent().getText());
+            String text = req.getEvent().getText().toLowerCase();
+            log.info("Event Received: App Mentioned -> {}", text);
+            if (text.contains("task") || text.contains("할 일") || text.contains("태스크")) {
+                return handleTaskList(ctx);
+            }
             return handleStatusCheck(ctx);
         });
 
@@ -49,7 +55,39 @@ public class SlackController {
             return ctx.ack();
         });
 
+        // 5. Task 완료 버튼 처리 (action_id: task_complete_{taskId})
+        slackApp.blockAction(Pattern.compile("task_complete_(.+)"), (req, ctx) -> {
+            String actionId = req.getPayload().getActions().get(0).getActionId();
+            String taskId = actionId.replace("task_complete_", "");
+            log.info("Action Received: task_complete -> taskId={}", taskId);
+
+            agentSecretaryService.updateTaskStatus(taskId, true).thenRun(() -> {
+                try {
+                    ctx.respond(r -> r.text("✅ 태스크를 완료 처리했습니다!").replaceOriginal(false));
+                } catch (Exception e) {
+                    log.error("Failed to respond after task update", e);
+                }
+            });
+            return ctx.ack();
+        });
+
         log.info("All Slack handlers (Events & Block Actions) have been registered.");
+    }
+
+    private Response handleTaskList(com.slack.api.bolt.context.builtin.EventContext ctx) {
+        agentSecretaryService.getTodaysTasks().thenAccept(tasks -> {
+            var blocks = blockKitGenerator.generateTaskList(tasks);
+            try {
+                ctx.client().chatPostMessage(r -> r
+                        .channel(ctx.getChannelId())
+                        .blocks(blocks)
+                        .text("오늘의 할 일 목록입니다.")
+                );
+            } catch (Exception e) {
+                log.error("Failed to post task list to slack", e);
+            }
+        });
+        return ctx.ack();
     }
 
     private Response handleStatusCheck(com.slack.api.bolt.context.builtin.EventContext ctx) {
@@ -57,7 +95,8 @@ public class SlackController {
             var blocks = blockKitGenerator.generateFocusProposal(
                     result.score(),
                     result.insight(),
-                    "구글 캘린더 기반 추천 업무"
+                    "구글 캘린더 기반 추천 업무",
+                    result.events()
             );
 
             try {

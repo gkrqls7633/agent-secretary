@@ -22,3 +22,6 @@ google:
   calendar:
     credentials-path: ${GOOGLE_CREDENTIALS_PATH}
     calendar-id: ${GOOGLE_CALENDAR_ID:primary}
+  tasks:
+    task-list-id: ${GOOGLE_TASKS_LIST_ID:@default}
+    delegated-user: ${GOOGLE_DELEGATED_USER}

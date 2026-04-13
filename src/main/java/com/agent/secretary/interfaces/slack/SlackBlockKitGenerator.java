@@ -1,12 +1,16 @@
 package com.agent.secretary.interfaces.slack;
 
+import com.agent.secretary.domain.model.CalendarEvent;
+import com.agent.secretary.domain.model.Task;
 import com.slack.api.model.block.Blocks;
 import com.slack.api.model.block.LayoutBlock;
 import com.slack.api.model.block.composition.BlockCompositions;
 import com.slack.api.model.block.composition.PlainTextObject;
 import com.slack.api.model.block.element.BlockElements;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.slack.api.model.block.Blocks.*;
 import static com.slack.api.model.block.composition.BlockCompositions.*;
@@ -16,6 +20,8 @@ import static com.slack.api.model.block.element.BlockElements.*;
  * Slack Block Kit을 생성하는 전용 Generator 클래스.
  */
 public class SlackBlockKitGenerator {
+
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     /**
      * 모닝 브리핑 메시지 템플릿
@@ -50,14 +56,25 @@ public class SlackBlockKitGenerator {
     public List<LayoutBlock> generateFocusProposal(
             int focusScore,
             String insight,
-            String recommendedTask
+            String recommendedTask,
+            List<CalendarEvent> events
     ) {
+        String eventsSummary = events.stream()
+                .map(event -> String.format("- [ ] %s (%s - %s)",
+                        event.summary(),
+                        event.startTime().format(TIME_FORMATTER),
+                        event.endTime().format(TIME_FORMATTER)))
+                .collect(Collectors.joining("\n"));
+
+        final String checklist = eventsSummary.isEmpty() ? "현재 등록된 일정이 없습니다." : eventsSummary;
+
         return asBlocks(
             header(h -> h.text(plainText("🚀 집중 골든타임 알림", true))),
             section(s -> s.text(markdownText(String.format(
                     "*현재 집중 점수: %d점*\n%s", focusScore, insight)))),
             section(s -> s.text(markdownText(String.format(
-                    "지금 바로 *[%s]* 업무를 시작해 보시는 건 어떨까요?", recommendedTask)))),
+                    "지금 바로 *[%s]* 업무를 시작해 보시는 건 어떨까요?\n\n*오늘의 체크리스트:*\n%s", 
+                    recommendedTask, checklist)))),
             actions(a -> a.elements(asElements(
                     button(b -> b.text(plainText("지금 시작", true))
                             .style("primary")
@@ -69,6 +86,50 @@ public class SlackBlockKitGenerator {
                             .actionId("focus_reject"))
             )))
         );
+    }
+
+    /**
+     * 오늘의 Task 목록 메시지 템플릿
+     * 각 태스크에 완료 버튼 포함 (action_id: task_complete_{taskId})
+     */
+    public List<LayoutBlock> generateTaskList(List<Task> tasks) {
+        if (tasks.isEmpty()) {
+            return asBlocks(
+                header(h -> h.text(plainText("📋 오늘의 할 일", true))),
+                section(s -> s.text(markdownText("오늘 마감인 태스크가 없습니다.")))
+            );
+        }
+
+        List<LayoutBlock> blocks = new ArrayList<>();
+        blocks.add(header(h -> h.text(plainText("📋 오늘의 할 일", true))));
+
+        for (Task task : tasks) {
+            String status = task.completed() ? "✅" : "⬜";
+            String dueText = task.dueAt() != null ? " `" + task.dueAt().format(DateTimeFormatter.ofPattern("HH:mm")) + "`" : "";
+            String taskText = String.format("%s *%s*%s", status, task.title(), dueText);
+
+            if (task.notes() != null && !task.notes().isBlank()) {
+                taskText += "\n> " + task.notes();
+            }
+
+            final String finalTaskText = taskText;
+            final String taskId = task.id();
+
+            if (!task.completed() && taskId != null) {
+                blocks.add(section(s -> s
+                    .text(markdownText(finalTaskText))
+                    .accessory(button(b -> b
+                        .text(plainText("완료", true))
+                        .style("primary")
+                        .actionId("task_complete_" + taskId)
+                    ))
+                ));
+            } else {
+                blocks.add(section(s -> s.text(markdownText(finalTaskText))));
+            }
+        }
+
+        return blocks;
     }
 
     /**
