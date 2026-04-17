@@ -43,7 +43,7 @@ public class AgentSecretaryService {
     public void scheduledTaskBriefing() {
         log.info("Starting scheduled task briefing...");
         taskPort.getTodaysTasks().thenAccept(tasks -> {
-            var blocks = blockKitGenerator.generateTaskList(tasks);
+            var blocks = blockKitGenerator.generateDailyBriefing(tasks, java.time.LocalDate.now());
             try {
                 slackApp.client().chatPostMessage(r -> r
                         .channel(channelId)

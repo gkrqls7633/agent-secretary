@@ -76,7 +76,7 @@ public class SlackController {
 
     private Response handleTaskList(com.slack.api.bolt.context.builtin.EventContext ctx) {
         agentSecretaryService.getTodaysTasks().thenAccept(tasks -> {
-            var blocks = blockKitGenerator.generateTaskList(tasks);
+            var blocks = blockKitGenerator.generateDailyBriefing(tasks, java.time.LocalDate.now());
             try {
                 ctx.client().chatPostMessage(r -> r
                         .channel(ctx.getChannelId())

@@ -89,47 +89,80 @@ public class SlackBlockKitGenerator {
     }
 
     /**
-     * 오늘의 Task 목록 메시지 템플릿
-     * 각 태스크에 완료 버튼 포함 (action_id: task_complete_{taskId})
+     * 일일 브리핑 메시지 Block Kit 생성.
+     * block_id 컨벤션: task_card_{taskId}, task_actions_{taskId}, task_footer
      */
-    public List<LayoutBlock> generateTaskList(List<Task> tasks) {
+    public List<LayoutBlock> generateDailyBriefing(List<Task> tasks, java.time.LocalDate date) {
+        String dateHeader = buildDateHeader(date);
+        List<LayoutBlock> blocks = new ArrayList<>();
+
+        blocks.add(header(h -> h.text(plainText("📋 오늘의 할 일 — " + dateHeader, true))));
+
         if (tasks.isEmpty()) {
-            return asBlocks(
-                header(h -> h.text(plainText("📋 오늘의 할 일", true))),
-                section(s -> s.text(markdownText("오늘 마감인 태스크가 없습니다.")))
-            );
+            blocks.add(section(s -> s.text(markdownText("오늘 등록된 할 일이 없습니다. 여유로운 하루 되세요 😊"))));
+            blocks.add(buildFooterActions());
+            return blocks;
         }
 
-        List<LayoutBlock> blocks = new ArrayList<>();
-        blocks.add(header(h -> h.text(plainText("📋 오늘의 할 일", true))));
-
-        for (Task task : tasks) {
-            String status = task.completed() ? "✅" : "⬜";
-            String dueText = task.dueAt() != null ? " `" + task.dueAt().format(DateTimeFormatter.ofPattern("HH:mm")) + "`" : "";
-            String taskText = String.format("%s *%s*%s", status, task.title(), dueText);
-
-            if (task.notes() != null && !task.notes().isBlank()) {
-                taskText += "\n> " + task.notes();
-            }
-
-            final String finalTaskText = taskText;
+        for (int i = 0; i < tasks.size(); i++) {
+            Task task = tasks.get(i);
+            final int order = i + 1;
             final String taskId = task.id();
+            final String timeText = buildTimeText(task);
+            final String cardText = String.format("*#%d*  %s\n%s", order, task.title(), timeText);
 
-            if (!task.completed() && taskId != null) {
-                blocks.add(section(s -> s
-                    .text(markdownText(finalTaskText))
-                    .accessory(button(b -> b
-                        .text(plainText("완료", true))
+            blocks.add(section(s -> s
+                .blockId("task_card_" + taskId)
+                .text(markdownText(cardText))
+            ));
+            blocks.add(actions(a -> a
+                .blockId("task_actions_" + taskId)
+                .elements(asElements(
+                    button(b -> b
+                        .text(plainText("✏️ 수정", true))
+                        .actionId("task_edit_" + taskId)
+                    ),
+                    button(b -> b
+                        .text(plainText("✅ 완료", true))
                         .style("primary")
                         .actionId("task_complete_" + taskId)
-                    ))
-                ));
-            } else {
-                blocks.add(section(s -> s.text(markdownText(finalTaskText))));
-            }
+                    )
+                ))
+            ));
+            blocks.add(divider());
         }
 
+        blocks.add(context(c -> c.elements(List.of(
+            markdownText("총 " + tasks.size() + "개 태스크")
+        ))));
+        blocks.add(buildFooterActions());
+
         return blocks;
+    }
+
+    private String buildDateHeader(java.time.LocalDate date) {
+        String[] days = {"월", "화", "수", "목", "금", "토", "일"};
+        String dayOfWeek = days[date.getDayOfWeek().getValue() - 1];
+        return String.format("%d년 %d월 %d일 (%s)", date.getYear(), date.getMonthValue(), date.getDayOfMonth(), dayOfWeek);
+    }
+
+    private String buildTimeText(Task task) {
+        if (task.dueAt() == null) {
+            return "⏱ 시간 미정";
+        }
+        return "🕘 " + task.dueAt().format(TIME_FORMATTER);
+    }
+
+    private LayoutBlock buildFooterActions() {
+        return actions(a -> a
+            .blockId("task_footer")
+            .elements(asElements(
+                button(b -> b
+                    .text(plainText("➕ 태스크 추가", true))
+                    .actionId("task_add")
+                )
+            ))
+        );
     }
 
     /**
