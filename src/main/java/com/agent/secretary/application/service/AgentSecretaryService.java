@@ -88,6 +88,10 @@ public class AgentSecretaryService {
         return taskPort.getTodaysTasks();
     }
 
+    public CompletableFuture<List<Task>> getTomorrowsTasks() {
+        return taskPort.getTomorrowsTasks();
+    }
+
     public CompletableFuture<Task> getTaskById(String taskId) {
         return taskPort.getTaskById(taskId);
     }
