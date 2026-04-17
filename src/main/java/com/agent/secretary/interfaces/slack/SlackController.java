@@ -130,6 +130,29 @@ public class SlackController {
             return ctx.ack();
         });
 
+        // checkin. 저녁 체크인 완료 버튼 처리 (action_id: checkin_complete_{taskId})
+        slackApp.blockAction(Pattern.compile("checkin_complete_(.+)"), (req, ctx) -> {
+            String actionId = req.getPayload().getActions().get(0).getActionId();
+            String taskId = actionId.replace("checkin_complete_", "");
+            log.info("Action Received: checkin_complete -> taskId={}", taskId);
+
+            agentSecretaryService.markEveningTaskComplete(taskId).thenAccept(updatedBlocks -> {
+                String ts = agentSecretaryService.getEveningCheckInTs();
+                if (ts == null) return;
+                try {
+                    ctx.client().chatUpdate(r -> r
+                        .channel(channelId)
+                        .ts(ts)
+                        .blocks(updatedBlocks)
+                        .text("오늘 하루 마무리 체크인입니다.")
+                    );
+                } catch (Exception e) {
+                    log.error("Failed to update evening check-in message", e);
+                }
+            });
+            return ctx.ack();
+        });
+
         // 7. Task 완료 버튼 처리 (action_id: task_complete_{taskId})
         slackApp.blockAction(Pattern.compile("task_complete_(.+)"), (req, ctx) -> {
             String actionId = req.getPayload().getActions().get(0).getActionId();

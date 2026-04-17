@@ -232,6 +232,34 @@ public class SlackBlockKitGenerator {
     }
 
     /**
+     * 저녁 22시 체크인 메시지 Block Kit 생성.
+     * 완료된 태스크는 취소선, 미완료 태스크는 checkin_complete_{taskId} 버튼 포함.
+     */
+    public List<LayoutBlock> generateEveningCheckIn(List<Task> tasks) {
+        List<LayoutBlock> blocks = new ArrayList<>();
+        blocks.add(header(h -> h.text(plainText("🌙 오늘 하루 마무리 체크인", true))));
+        blocks.add(section(s -> s.text(markdownText("아직 완료하지 않은 할 일이 있습니다. 확인해 주세요!"))));
+        blocks.add(divider());
+
+        for (Task task : tasks) {
+            final String taskId = task.id();
+            if (task.completed()) {
+                blocks.add(section(s -> s.text(markdownText("✅  ~" + task.title() + "~"))));
+            } else {
+                blocks.add(section(s -> s
+                    .text(markdownText("⬜  " + task.title()))
+                    .accessory(button(b -> b
+                        .text(plainText("✅ 완료", true))
+                        .style("primary")
+                        .actionId("checkin_complete_" + taskId)
+                    ))
+                ));
+            }
+        }
+        return blocks;
+    }
+
+    /**
      * 비상 에너지 부스트 알림
      */
     public List<LayoutBlock> generateEmergencyBoost(int focusScore, String nextEvent) {

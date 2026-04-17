@@ -36,6 +36,10 @@ public class AgentSecretaryService {
     @Value("${slack.channel-id}")
     private String channelId;
 
+    private String eveningCheckInTs;
+    private final java.util.concurrent.CopyOnWriteArrayList<Task> eveningCheckInTasks =
+        new java.util.concurrent.CopyOnWriteArrayList<>();
+
     /**
      * 10시 정각마다 오늘의 Task 목록을 Slack에 전송합니다.
      */
@@ -60,6 +64,53 @@ public class AgentSecretaryService {
             return null;
         });
     }
+    /**
+     * 매일 22:00 미완료 태스크 체크인 메시지를 Slack에 전송합니다.
+     */
+    @Scheduled(cron = "0 0 22 * * *")
+    public void sendEveningCheckIn() {
+        log.info("Starting evening check-in...");
+        taskPort.getTodaysTasks().thenAccept(tasks -> {
+            if (tasks.isEmpty()) {
+                log.info("No incomplete tasks. Skipping evening check-in.");
+                return;
+            }
+            eveningCheckInTasks.clear();
+            eveningCheckInTasks.addAll(tasks);
+            var blocks = blockKitGenerator.generateEveningCheckIn(tasks);
+            try {
+                var response = slackApp.client().chatPostMessage(r -> r
+                        .channel(channelId)
+                        .blocks(blocks)
+                        .text("오늘 하루 마무리 체크인입니다.")
+                );
+                eveningCheckInTs = response.getTs();
+                log.info("Evening check-in sent. tasks={}", tasks.size());
+            } catch (Exception e) {
+                log.error("Failed to send evening check-in", e);
+            }
+        }).exceptionally(e -> {
+            log.error("Failed to fetch tasks for evening check-in", e);
+            return null;
+        });
+    }
+
+    /**
+     * 체크인 태스크 완료 처리 후 업데이트된 Block Kit 반환.
+     */
+    public CompletableFuture<List<com.slack.api.model.block.LayoutBlock>> markEveningTaskComplete(String taskId) {
+        return taskPort.updateTaskStatus(taskId, true).thenApply(v -> {
+            eveningCheckInTasks.replaceAll(t -> t.id().equals(taskId)
+                ? new Task(t.id(), t.title(), t.notes(), true, t.dueAt(), java.time.OffsetDateTime.now())
+                : t);
+            return blockKitGenerator.generateEveningCheckIn(eveningCheckInTasks);
+        });
+    }
+
+    public String getEveningCheckInTs() {
+        return eveningCheckInTs;
+    }
+
     /**
      * 현재 상태를 분석하여 집중도 점수와 인사이트를 반환합니다.
      */
