@@ -9,8 +9,6 @@ import com.slack.api.model.block.composition.PlainTextObject;
 import com.slack.api.model.block.element.BlockElements;
 import com.slack.api.model.view.View;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -155,12 +153,9 @@ public class SlackBlockKitGenerator {
         if (task.dueAt() == null) {
             return "⏱ 시간 미정";
         }
-        // Google Tasks due 필드는 시간 미설정 시 자정 UTC(00:00:00Z)로 반환됨
-        OffsetDateTime utc = task.dueAt().withOffsetSameInstant(ZoneOffset.UTC);
-        if (utc.getHour() == 0 && utc.getMinute() == 0 && utc.getSecond() == 0) {
-            return "⏱ 시간 미정";
-        }
-        return "🕘 " + task.dueAt().format(TIME_FORMATTER);
+        return "🕘 " + task.dueAt()
+                .withOffsetSameInstant(java.time.ZoneOffset.ofHours(9))
+                .format(TIME_FORMATTER);
     }
 
     public View buildTaskAddModal() {

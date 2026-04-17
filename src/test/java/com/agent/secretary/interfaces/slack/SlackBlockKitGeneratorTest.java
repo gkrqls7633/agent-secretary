@@ -133,4 +133,29 @@ class SlackBlockKitGeneratorTest {
         assertThat(header.getText().getText()).contains("4");
         assertThat(header.getText().getText()).contains("17");
     }
+
+    @Test
+    @DisplayName("KST 09:00 입력된 태스크(UTC 00:00 저장)는 '🕘 09:00'으로 표시")
+    void buildTimeText_kst09_showsCorrectTime() {
+        // Google Tasks에 KST 09:00 입력 → UTC 00:00으로 저장됨
+        Task task = new Task("t3", "등산 준비하기", null, false,
+                OffsetDateTime.of(2026, 4, 17, 0, 0, 0, 0, ZoneOffset.UTC), null);
+
+        List<LayoutBlock> blocks = generator.generateDailyBriefing(List.of(task), LocalDate.of(2026, 4, 17));
+
+        SectionBlock card = (SectionBlock) blocks.get(1);
+        assertThat(card.getText().getText()).contains("09:00");
+        assertThat(card.getText().getText()).doesNotContain("시간 미정");
+    }
+
+    @Test
+    @DisplayName("dueAt null인 경우만 '시간 미정' 표시")
+    void buildTimeText_nullDueAt_showsNoTime() {
+        Task task = new Task("t4", "미정 태스크", null, false, null, null);
+
+        List<LayoutBlock> blocks = generator.generateDailyBriefing(List.of(task), LocalDate.now());
+
+        SectionBlock card = (SectionBlock) blocks.get(1);
+        assertThat(card.getText().getText()).contains("시간 미정");
+    }
 }
