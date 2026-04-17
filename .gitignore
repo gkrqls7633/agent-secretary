@@ -41,3 +41,7 @@ db/*.sqlite3
 *.jar
 *.war
 *.ear
+
+# Google OAuth credentials
+client_secret.json
+tokens/
