@@ -2,11 +2,7 @@ package com.agent.secretary.interfaces.slack;
 
 import com.agent.secretary.domain.model.CalendarEvent;
 import com.agent.secretary.domain.model.Task;
-import com.slack.api.model.block.Blocks;
 import com.slack.api.model.block.LayoutBlock;
-import com.slack.api.model.block.composition.BlockCompositions;
-import com.slack.api.model.block.composition.PlainTextObject;
-import com.slack.api.model.block.element.BlockElements;
 import com.slack.api.model.view.View;
 
 import java.time.format.DateTimeFormatter;
@@ -93,7 +89,6 @@ public class SlackBlockKitGenerator {
 
     /**
      * 일일 브리핑 메시지 Block Kit 생성.
-     * block_id 컨벤션: task_card_{taskId}, task_actions_{taskId}, task_footer
      */
     public List<LayoutBlock> generateDailyBriefing(List<Task> tasks, java.time.LocalDate date) {
         String dateHeader = buildDateHeader(date);
@@ -111,8 +106,7 @@ public class SlackBlockKitGenerator {
             Task task = tasks.get(i);
             final int order = i + 1;
             final String taskId = task.id();
-            final String timeText = buildTimeText(task);
-            final String cardText = String.format("*#%d*  %s\n%s", order, task.title(), timeText);
+            final String cardText = String.format("*#%d*  %s", order, task.title());
 
             blocks.add(section(s -> s
                 .blockId("task_card_" + taskId)
@@ -147,15 +141,6 @@ public class SlackBlockKitGenerator {
         String[] days = {"월", "화", "수", "목", "금", "토", "일"};
         String dayOfWeek = days[date.getDayOfWeek().getValue() - 1];
         return String.format("%d년 %d월 %d일 (%s)", date.getYear(), date.getMonthValue(), date.getDayOfMonth(), dayOfWeek);
-    }
-
-    private String buildTimeText(Task task) {
-        if (task.dueAt() == null) {
-            return "⏱ 시간 미정";
-        }
-        return "🕘 " + task.dueAt()
-                .withOffsetSameInstant(java.time.ZoneOffset.ofHours(9))
-                .format(TIME_FORMATTER);
     }
 
     public View buildTaskAddModal() {
@@ -233,7 +218,6 @@ public class SlackBlockKitGenerator {
 
     /**
      * 저녁 22시 체크인 메시지 Block Kit 생성.
-     * 완료된 태스크는 취소선, 미완료 태스크는 checkin_complete_{taskId} 버튼 포함.
      */
     public List<LayoutBlock> generateEveningCheckIn(List<Task> tasks) {
         List<LayoutBlock> blocks = new ArrayList<>();
@@ -276,8 +260,7 @@ public class SlackBlockKitGenerator {
         for (int i = 0; i < tasks.size(); i++) {
             Task task = tasks.get(i);
             final int order = i + 1;
-            final String timeText = buildTimeText(task);
-            final String cardText = String.format("*#%d*  %s\n%s", order, task.title(), timeText);
+            final String cardText = String.format("*#%d*  %s", order, task.title());
             blocks.add(section(s -> s.text(markdownText(cardText))));
             blocks.add(divider());
         }

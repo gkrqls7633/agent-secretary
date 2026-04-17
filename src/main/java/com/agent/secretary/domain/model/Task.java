@@ -12,12 +12,13 @@ public record Task(
     String notes,
     boolean completed,
     OffsetDateTime dueAt,
-    OffsetDateTime completedAt
+    OffsetDateTime completedAt,
+    boolean hasTime
 ) {
     /**
      * 새로운 할 일 생성을 위한 팩토리 메서드
      */
     public static Task createNew(String title, String notes, OffsetDateTime dueAt) {
-        return new Task(null, title, notes, false, dueAt, null);
+        return new Task(null, title, notes, false, dueAt, null, false);
     }
 }

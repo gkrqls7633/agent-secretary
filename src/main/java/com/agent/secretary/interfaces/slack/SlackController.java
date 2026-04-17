@@ -116,16 +116,27 @@ public class SlackController {
             var values = req.getPayload().getView().getState().getValues();
             String title = values.get("title_block").get("title_input").getValue();
             String notes = values.get("notes_block").get("notes_input").getValue();
-            Task updatedTask = new Task(taskId, title, notes, false, null, null);
-            agentSecretaryService.updateTask(updatedTask).thenRun(() -> {
-                try {
-                    ctx.client().chatPostMessage(r -> r
-                        .channel(channelId)
-                        .text("✏️ 태스크 *" + title + "* 가 수정되었습니다.")
-                    );
-                } catch (Exception e) {
-                    log.error("Failed to notify after task edit", e);
-                }
+            
+            agentSecretaryService.getTaskById(taskId).thenAccept(existingTask -> {
+                Task updatedTask = new Task(
+                    taskId, 
+                    title, 
+                    notes, 
+                    existingTask.completed(), 
+                    existingTask.dueAt(), 
+                    existingTask.completedAt(), 
+                    existingTask.hasTime()
+                );
+                agentSecretaryService.updateTask(updatedTask).thenRun(() -> {
+                    try {
+                        ctx.client().chatPostMessage(r -> r
+                            .channel(channelId)
+                            .text("✏️ 태스크 *" + title + "* 가 수정되었습니다.")
+                        );
+                    } catch (Exception e) {
+                        log.error("Failed to notify after task edit", e);
+                    }
+                });
             });
             return ctx.ack();
         });

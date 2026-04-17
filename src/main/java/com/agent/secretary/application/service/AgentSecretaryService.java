@@ -55,12 +55,16 @@ public class AgentSecretaryService {
         taskPort.getTodaysTasks().thenAccept(tasks -> {
             var blocks = blockKitGenerator.generateDailyBriefing(tasks, LocalDate.now());
             try {
-                slackApp.client().chatPostMessage(r -> r
+                var response = slackApp.client().chatPostMessage(r -> r
                         .channel(channelId)
                         .blocks(blocks)
                         .text("오늘의 할 일 목록입니다.")
                 );
-                log.info("Morning briefing sent. tasks={}", tasks.size());
+                if (response.isOk()) {
+                    log.info("Morning briefing sent successfully. tasks={}", tasks.size());
+                } else {
+                    log.error("Failed to send morning briefing: {}", response.getError());
+                }
             } catch (Exception e) {
                 log.error("Failed to send task briefing to Slack", e);
             }
@@ -70,9 +74,9 @@ public class AgentSecretaryService {
         });
     }
     /**
-     * 매일 22:00 미완료 태스크 체크인 메시지를 Slack에 전송합니다.
+     * 매일 21:00 미완료 태스크 체크인 메시지를 Slack에 전송합니다.
      */
-    @Scheduled(cron = "0 0 22 * * *")
+    @Scheduled(cron = "0 47 20 * * *")
     public void sendEveningCheckIn() {
         log.info("Starting evening check-in...");
         taskPort.getTodaysTasks().thenAccept(tasks -> {
@@ -89,8 +93,12 @@ public class AgentSecretaryService {
                         .blocks(blocks)
                         .text("오늘 하루 마무리 체크인입니다.")
                 );
-                eveningCheckInTs = response.getTs();
-                log.info("Evening check-in sent. tasks={}", tasks.size());
+                if (response.isOk()) {
+                    eveningCheckInTs = response.getTs();
+                    log.info("Evening check-in sent successfully. tasks={}", tasks.size());
+                } else {
+                    log.error("Failed to send evening check-in: {}", response.getError());
+                }
             } catch (Exception e) {
                 log.error("Failed to send evening check-in", e);
             }
@@ -110,12 +118,16 @@ public class AgentSecretaryService {
             LocalDate tomorrow = LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(1);
             var blocks = blockKitGenerator.generateTomorrowPreview(tasks, tomorrow);
             try {
-                slackApp.client().chatPostMessage(r -> r
+                var response = slackApp.client().chatPostMessage(r -> r
                         .channel(channelId)
                         .blocks(blocks)
                         .text("내일 할 일 미리보기입니다.")
                 );
-                log.info("Tomorrow preview sent. tasks={}", tasks.size());
+                if (response.isOk()) {
+                    log.info("Tomorrow preview sent successfully. tasks={}", tasks.size());
+                } else {
+                    log.error("Failed to send tomorrow preview: {}", response.getError());
+                }
             } catch (Exception e) {
                 log.error("Failed to send tomorrow preview", e);
             }
@@ -131,7 +143,7 @@ public class AgentSecretaryService {
     public CompletableFuture<List<com.slack.api.model.block.LayoutBlock>> markEveningTaskComplete(String taskId) {
         return taskPort.updateTaskStatus(taskId, true).thenApply(v -> {
             eveningCheckInTasks.replaceAll(t -> t.id().equals(taskId)
-                ? new Task(t.id(), t.title(), t.notes(), true, t.dueAt(), OffsetDateTime.now())
+                ? new Task(t.id(), t.title(), t.notes(), true, t.dueAt(), OffsetDateTime.now(), t.hasTime())
                 : t);
             return blockKitGenerator.generateEveningCheckIn(eveningCheckInTasks);
         });
