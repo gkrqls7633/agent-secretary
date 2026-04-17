@@ -3,6 +3,7 @@ package com.agent.secretary.application.service;
 import com.agent.secretary.application.port.out.CalendarPort;
 import com.agent.secretary.application.port.out.HealthPort;
 import com.agent.secretary.application.port.out.TaskOutboundPort;
+import com.agent.secretary.domain.model.CalendarEvent;
 import com.agent.secretary.domain.model.FocusContext;
 import com.agent.secretary.domain.model.Task;
 import com.agent.secretary.domain.service.FocusEngine;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -50,7 +52,7 @@ public class AgentSecretaryService {
     public void sendMorningBriefing() {
         log.info("Starting morning briefing...");
         taskPort.getTodaysTasks().thenAccept(tasks -> {
-            var blocks = blockKitGenerator.generateDailyBriefing(tasks, java.time.LocalDate.now());
+            var blocks = blockKitGenerator.generateDailyBriefing(tasks, LocalDate.now());
             try {
                 slackApp.client().chatPostMessage(r -> r
                         .channel(channelId)
@@ -161,5 +163,5 @@ public class AgentSecretaryService {
         return taskPort.updateTaskStatus(taskId, completed);
     }
 
-    public record FocusAnalysisResult(int score, String insight, java.util.List<com.agent.secretary.domain.model.CalendarEvent> events) {}
+    public record FocusAnalysisResult(int score, String insight, List<CalendarEvent> events) {}
 }
