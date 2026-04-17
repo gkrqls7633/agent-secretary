@@ -7,6 +7,10 @@ import com.slack.api.model.block.LayoutBlock;
 import com.slack.api.model.block.composition.BlockCompositions;
 import com.slack.api.model.block.composition.PlainTextObject;
 import com.slack.api.model.block.element.BlockElements;
+import com.slack.api.model.view.View;
+
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +19,7 @@ import java.util.stream.Collectors;
 import static com.slack.api.model.block.Blocks.*;
 import static com.slack.api.model.block.composition.BlockCompositions.*;
 import static com.slack.api.model.block.element.BlockElements.*;
+import static com.slack.api.model.view.Views.*;
 
 /**
  * Slack Block Kit을 생성하는 전용 Generator 클래스.
@@ -150,7 +155,73 @@ public class SlackBlockKitGenerator {
         if (task.dueAt() == null) {
             return "⏱ 시간 미정";
         }
+        // Google Tasks due 필드는 시간 미설정 시 자정 UTC(00:00:00Z)로 반환됨
+        OffsetDateTime utc = task.dueAt().withOffsetSameInstant(ZoneOffset.UTC);
+        if (utc.getHour() == 0 && utc.getMinute() == 0 && utc.getSecond() == 0) {
+            return "⏱ 시간 미정";
+        }
         return "🕘 " + task.dueAt().format(TIME_FORMATTER);
+    }
+
+    public View buildTaskAddModal() {
+        return view(v -> v
+            .type("modal")
+            .callbackId("task_add_modal")
+            .title(viewTitle(t -> t.type("plain_text").text("태스크 추가")))
+            .submit(viewSubmit(s -> s.type("plain_text").text("추가")))
+            .close(viewClose(c -> c.type("plain_text").text("취소")))
+            .blocks(asBlocks(
+                input(i -> i
+                    .blockId("title_block")
+                    .label(plainText("제목"))
+                    .element(plainTextInput(p -> p
+                        .actionId("title_input")
+                        .placeholder(plainText("태스크 제목을 입력하세요"))
+                    ))
+                ),
+                input(i -> i
+                    .blockId("notes_block")
+                    .optional(true)
+                    .label(plainText("메모"))
+                    .element(plainTextInput(p -> p
+                        .actionId("notes_input")
+                        .multiline(true)
+                        .placeholder(plainText("메모 (선택사항)"))
+                    ))
+                )
+            ))
+        );
+    }
+
+    public View buildTaskEditModal(Task task) {
+        return view(v -> v
+            .type("modal")
+            .callbackId("task_edit_modal")
+            .privateMetadata(task.id())
+            .title(viewTitle(t -> t.type("plain_text").text("태스크 수정")))
+            .submit(viewSubmit(s -> s.type("plain_text").text("저장")))
+            .close(viewClose(c -> c.type("plain_text").text("취소")))
+            .blocks(asBlocks(
+                input(i -> i
+                    .blockId("title_block")
+                    .label(plainText("제목"))
+                    .element(plainTextInput(p -> p
+                        .actionId("title_input")
+                        .initialValue(task.title())
+                    ))
+                ),
+                input(i -> i
+                    .blockId("notes_block")
+                    .optional(true)
+                    .label(plainText("메모"))
+                    .element(plainTextInput(p -> p
+                        .actionId("notes_input")
+                        .multiline(true)
+                        .initialValue(task.notes() != null ? task.notes() : "")
+                    ))
+                )
+            ))
+        );
     }
 
     private LayoutBlock buildFooterActions() {

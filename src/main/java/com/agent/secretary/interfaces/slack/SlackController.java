@@ -1,12 +1,15 @@
 package com.agent.secretary.interfaces.slack;
 
 import com.agent.secretary.application.service.AgentSecretaryService;
+import com.agent.secretary.domain.model.Task;
 import com.slack.api.bolt.App;
 import com.slack.api.bolt.response.Response;
 import com.slack.api.model.event.AppMentionEvent;
+import com.slack.api.model.event.MessageEvent;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.regex.Pattern;
@@ -20,9 +23,15 @@ public class SlackController {
     private final SlackBlockKitGenerator blockKitGenerator = new SlackBlockKitGenerator();
     private final App slackApp;
 
+    @Value("${slack.channel-id}")
+    private String channelId;
+
     @PostConstruct
     public void registerSlackHandlers() {
         log.info("Initializing Slack handlers...");
+
+        // 일반 메시지 이벤트 무시 처리
+        slackApp.event(MessageEvent.class, (req, ctx) -> ctx.ack());
 
         // 1. 앱 멘션 이벤트 처리 - "task" 키워드 포함 시 Task 목록, 아니면 집중도 체크
         slackApp.event(AppMentionEvent.class, (req, ctx) -> {
@@ -55,7 +64,73 @@ public class SlackController {
             return ctx.ack();
         });
 
-        // 5. Task 완료 버튼 처리 (action_id: task_complete_{taskId})
+        // 5. Task 추가 버튼 처리 — 모달 오픈
+        slackApp.blockAction("task_add", (req, ctx) -> {
+            ctx.client().viewsOpen(r -> r
+                .triggerId(req.getPayload().getTriggerId())
+                .view(blockKitGenerator.buildTaskAddModal())
+            );
+            return ctx.ack();
+        });
+
+        // 6. Task 수정 버튼 처리 — 기존 데이터 pre-fill 모달 오픈
+        slackApp.blockAction(Pattern.compile("task_edit_(.+)"), (req, ctx) -> {
+            String actionId = req.getPayload().getActions().get(0).getActionId();
+            String taskId = actionId.replace("task_edit_", "");
+            String triggerId = req.getPayload().getTriggerId();
+            agentSecretaryService.getTaskById(taskId).thenAccept(task -> {
+                try {
+                    ctx.client().viewsOpen(r -> r
+                        .triggerId(triggerId)
+                        .view(blockKitGenerator.buildTaskEditModal(task))
+                    );
+                } catch (Exception e) {
+                    log.error("Failed to open edit modal. taskId={}", taskId, e);
+                }
+            });
+            return ctx.ack();
+        });
+
+        // 8. 태스크 추가 모달 제출 처리
+        slackApp.viewSubmission("task_add_modal", (req, ctx) -> {
+            var values = req.getPayload().getView().getState().getValues();
+            String title = values.get("title_block").get("title_input").getValue();
+            String notes = values.get("notes_block").get("notes_input").getValue();
+            Task newTask = Task.createNew(title, notes, null);
+            agentSecretaryService.saveTask(newTask).thenRun(() -> {
+                try {
+                    ctx.client().chatPostMessage(r -> r
+                        .channel(channelId)
+                        .text("✅ 태스크 *" + title + "* 가 추가되었습니다.")
+                    );
+                } catch (Exception e) {
+                    log.error("Failed to notify after task add", e);
+                }
+            });
+            return ctx.ack();
+        });
+
+        // 9. 태스크 수정 모달 제출 처리
+        slackApp.viewSubmission("task_edit_modal", (req, ctx) -> {
+            String taskId = req.getPayload().getView().getPrivateMetadata();
+            var values = req.getPayload().getView().getState().getValues();
+            String title = values.get("title_block").get("title_input").getValue();
+            String notes = values.get("notes_block").get("notes_input").getValue();
+            Task updatedTask = new Task(taskId, title, notes, false, null, null);
+            agentSecretaryService.updateTask(updatedTask).thenRun(() -> {
+                try {
+                    ctx.client().chatPostMessage(r -> r
+                        .channel(channelId)
+                        .text("✏️ 태스크 *" + title + "* 가 수정되었습니다.")
+                    );
+                } catch (Exception e) {
+                    log.error("Failed to notify after task edit", e);
+                }
+            });
+            return ctx.ack();
+        });
+
+        // 7. Task 완료 버튼 처리 (action_id: task_complete_{taskId})
         slackApp.blockAction(Pattern.compile("task_complete_(.+)"), (req, ctx) -> {
             String actionId = req.getPayload().getActions().get(0).getActionId();
             String taskId = actionId.replace("task_complete_", "");

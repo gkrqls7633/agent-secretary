@@ -37,9 +37,10 @@ public class AgentSecretaryService {
     private String channelId;
 
     /**
-     * 1분마다 오늘의 Task 목록을 Slack에 전송합니다.
+     * 10시 정각마다 오늘의 Task 목록을 Slack에 전송합니다.
      */
-    @Scheduled(cron = "0 0 10 * * *")
+//    @Scheduled(cron = "0 0 10 * * *") //매일 10시
+    @Scheduled(cron = "0 * * * * *") //1분
     public void sendMorningBriefing() {
         log.info("Starting morning briefing...");
         taskPort.getTodaysTasks().thenAccept(tasks -> {
@@ -85,6 +86,18 @@ public class AgentSecretaryService {
 
     public CompletableFuture<List<Task>> getTodaysTasks() {
         return taskPort.getTodaysTasks();
+    }
+
+    public CompletableFuture<Task> getTaskById(String taskId) {
+        return taskPort.getTaskById(taskId);
+    }
+
+    public CompletableFuture<Task> saveTask(Task task) {
+        return taskPort.saveTask(task);
+    }
+
+    public CompletableFuture<Task> updateTask(Task task) {
+        return taskPort.updateTask(task);
     }
 
     public CompletableFuture<Void> updateTaskStatus(String taskId, boolean completed) {
