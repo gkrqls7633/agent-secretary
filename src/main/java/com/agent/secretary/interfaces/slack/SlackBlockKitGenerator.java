@@ -260,6 +260,34 @@ public class SlackBlockKitGenerator {
     }
 
     /**
+     * 내일 일정 미리보기 메시지 Block Kit 생성 (버튼 없음).
+     */
+    public List<LayoutBlock> generateTomorrowPreview(List<Task> tasks, java.time.LocalDate tomorrow) {
+        String dateHeader = buildDateHeader(tomorrow);
+        List<LayoutBlock> blocks = new ArrayList<>();
+        blocks.add(header(h -> h.text(plainText("📅 내일의 할 일 미리보기 — " + dateHeader, true))));
+
+        if (tasks.isEmpty()) {
+            blocks.add(section(s -> s.text(markdownText(
+                "내일 등록된 일정이 없습니다. 여유로운 하루가 될 것 같아요 😊"))));
+            return blocks;
+        }
+
+        for (int i = 0; i < tasks.size(); i++) {
+            Task task = tasks.get(i);
+            final int order = i + 1;
+            final String timeText = buildTimeText(task);
+            final String cardText = String.format("*#%d*  %s\n%s", order, task.title(), timeText);
+            blocks.add(section(s -> s.text(markdownText(cardText))));
+            blocks.add(divider());
+        }
+
+        blocks.add(context(c -> c.elements(List.of(
+            markdownText("총 " + tasks.size() + "개 태스크")))));
+        return blocks;
+    }
+
+    /**
      * 비상 에너지 부스트 알림
      */
     public List<LayoutBlock> generateEmergencyBoost(int focusScore, String nextEvent) {

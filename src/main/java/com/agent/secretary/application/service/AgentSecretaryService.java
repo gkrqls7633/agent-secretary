@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -95,6 +96,31 @@ public class AgentSecretaryService {
             }
         }).exceptionally(e -> {
             log.error("Failed to fetch tasks for evening check-in", e);
+            return null;
+        });
+    }
+
+    /**
+     * 매일 22:05 내일 일정 미리보기 메시지를 Slack에 전송합니다.
+     */
+    @Scheduled(cron = "0 5 22 * * *")
+    public void sendTomorrowPreview() {
+        log.info("Starting tomorrow preview...");
+        taskPort.getTomorrowsTasks().thenAccept(tasks -> {
+            LocalDate tomorrow = LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(1);
+            var blocks = blockKitGenerator.generateTomorrowPreview(tasks, tomorrow);
+            try {
+                slackApp.client().chatPostMessage(r -> r
+                        .channel(channelId)
+                        .blocks(blocks)
+                        .text("내일 할 일 미리보기입니다.")
+                );
+                log.info("Tomorrow preview sent. tasks={}", tasks.size());
+            } catch (Exception e) {
+                log.error("Failed to send tomorrow preview", e);
+            }
+        }).exceptionally(e -> {
+            log.error("Failed to fetch tomorrow tasks", e);
             return null;
         });
     }
