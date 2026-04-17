@@ -14,8 +14,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 집중도 분석 및 스케줄링 로직을 담당하는 애플리케이션 서비스.
@@ -36,9 +38,9 @@ public class AgentSecretaryService {
     @Value("${slack.channel-id}")
     private String channelId;
 
-    private String eveningCheckInTs;
-    private final java.util.concurrent.CopyOnWriteArrayList<Task> eveningCheckInTasks =
-        new java.util.concurrent.CopyOnWriteArrayList<>();
+    private volatile String eveningCheckInTs;
+    private final CopyOnWriteArrayList<Task> eveningCheckInTasks =
+        new CopyOnWriteArrayList<>();
 
     /**
      * 10시 정각마다 오늘의 Task 목록을 Slack에 전송합니다.
@@ -101,7 +103,7 @@ public class AgentSecretaryService {
     public CompletableFuture<List<com.slack.api.model.block.LayoutBlock>> markEveningTaskComplete(String taskId) {
         return taskPort.updateTaskStatus(taskId, true).thenApply(v -> {
             eveningCheckInTasks.replaceAll(t -> t.id().equals(taskId)
-                ? new Task(t.id(), t.title(), t.notes(), true, t.dueAt(), java.time.OffsetDateTime.now())
+                ? new Task(t.id(), t.title(), t.notes(), true, t.dueAt(), OffsetDateTime.now())
                 : t);
             return blockKitGenerator.generateEveningCheckIn(eveningCheckInTasks);
         });
