@@ -39,9 +39,9 @@ public class AgentSecretaryService {
     /**
      * 1분마다 오늘의 Task 목록을 Slack에 전송합니다.
      */
-    @Scheduled(cron = "0 * * * * *")
-    public void scheduledTaskBriefing() {
-        log.info("Starting scheduled task briefing...");
+    @Scheduled(cron = "0 0 10 * * *")
+    public void sendMorningBriefing() {
+        log.info("Starting morning briefing...");
         taskPort.getTodaysTasks().thenAccept(tasks -> {
             var blocks = blockKitGenerator.generateDailyBriefing(tasks, java.time.LocalDate.now());
             try {
@@ -50,7 +50,7 @@ public class AgentSecretaryService {
                         .blocks(blocks)
                         .text("오늘의 할 일 목록입니다.")
                 );
-                log.info("Successfully sent task briefing to Slack. tasks={}", tasks.size());
+                log.info("Morning briefing sent. tasks={}", tasks.size());
             } catch (Exception e) {
                 log.error("Failed to send task briefing to Slack", e);
             }
