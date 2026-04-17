@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -101,20 +103,20 @@ public class GoogleTaskAdapter implements TaskOutboundPort {
             try {
                 var taskList = googleTasksClient.tasks().list(resolvedTaskListId)
                     .setShowCompleted(false)
+                    .setShowHidden(true)
                     .execute();
 
                 if (taskList.getItems() == null) {
                     return Collections.emptyList();
                 }
 
-                java.time.LocalDate tomorrow = java.time.LocalDate.now(
-                    java.time.ZoneId.of("Asia/Seoul")).plusDays(1);
+                ZoneId seoulZone = ZoneId.of("Asia/Seoul");
+                LocalDate tomorrow = LocalDate.now(seoulZone).plusDays(1);
 
                 return taskList.getItems().stream()
-                    .filter(t -> !"completed".equals(t.getStatus()))
                     .map(TaskMapper::toDomain)
                     .filter(t -> t.dueAt() != null &&
-                        t.dueAt().atZoneSameInstant(java.time.ZoneId.of("Asia/Seoul"))
+                        t.dueAt().atZoneSameInstant(seoulZone)
                             .toLocalDate().equals(tomorrow))
                     .toList();
             } catch (Exception e) {
